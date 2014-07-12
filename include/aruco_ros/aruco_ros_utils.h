@@ -4,6 +4,7 @@
 #include "aruco/aruco.h"
 #include <sensor_msgs/CameraInfo.h>
 #include <tf/transform_datatypes.h>
+#include <opencv2/calib3d/calib3d.hpp>
 
 namespace aruco_ros
 {
