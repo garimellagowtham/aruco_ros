@@ -6,12 +6,14 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   geometry_msgs
   image_transport
+  nodelet
   pal_vision_segmentation
   roscpp
   tf
 )
 
 find_package(aruco REQUIRED)
+### Add a IF statement to ensure aruco version is more than or equal to 1.2.5 for compatibility ###
 
 generate_dynamic_reconfigure_options(
   cfg/ArucoThreshold.cfg
@@ -39,7 +41,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-message(" aruco include: ${aruco_INCLUDE_DIRS} >>> LIBS: ${aruco_LIBS}")
+#message(" aruco include: ${aruco_INCLUDE_DIRS} >>> LIBS: ${aruco_LIBS}")
 
 ## Declare a cpp library
 add_executable(single src/simple_single.cpp
@@ -51,3 +53,6 @@ add_executable(double src/simple_double.cpp
                       src/aruco_ros_utils.cpp)
 add_dependencies(double ${PROJECT_NAME}_gencfg)
 target_link_libraries(double aruco ${catkin_LIBRARIES})
+
+add_library(${PROJECT_NAME} src/nodelets/simple_board.cpp src/aruco_ros_utils.cpp)
+target_link_libraries(${PROJECT_NAME} aruco ${catkin_LIBRARIES})

@@ -18,9 +18,12 @@ namespace aruco_ros
      */
   aruco::CameraParameters rosCameraInfo2ArucoCamParams(const sensor_msgs::CameraInfo& cam_info,
                                                        bool useRectifiedParameters);
+  aruco::CameraParameters rosCameraInfo2ArucoCamParams(const sensor_msgs::CameraInfoConstPtr& cam_info,
+                                                       bool useRectifiedParameters);
 
   //FIXME: make parameter const as soon as the used function is also const
   tf::Transform arucoMarker2Tf(const aruco::Marker& marker);
-
+	
+  tf::Transform arucoBoard2Tf(const aruco::Board& board);
 }
 #endif // ARUCO_ROS_UTILS_H
