@@ -1,0 +1,33 @@
+<library path="lib/libaruco_ros">
+
+  <class name="aruco_ros/board_detector"
+	 type="aruco_ros::Aruco_BoardDetector"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+			Uses the aruco ros library for detecting the QR Code
+    </description>
+  </class>
+  <class name="aruco_ros/marker_detector"
+	 type="aruco_ros::Aruco_MarkerDetector"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+			Uses the aruco ros library for detecting the QR Code
+    </description>
+  </class>
+  <class name="aruco_ros/board_hrmdetector"
+	 type="aruco_ros::Aruco_HRM_BoardDetector"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+			Uses the aruco ros library for detecting the QR Code
+    </description>
+  </class>
+  <class name="aruco_ros/marker_hrmdetector"
+	 type="aruco_ros::Aruco_HRM_MarkerDetector"
+	 base_class_type="nodelet::Nodelet">
+    <description>
+			Uses the aruco ros library for detecting the QR Code
+    </description>
+  </class>
+
+	<!-- Will add similar classes for detecting highly reliable board/marker (hrm versions)-->
+</library>

@@ -37,14 +37,13 @@ or implied, of Rafael Muñoz Salinas.
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <opencv/cv.h>
-#include <opencv/highgui.h>
+#include <opencv2/highgui/highgui.hpp>
 #include <aruco/aruco.h>
-#include <aruco/boarddetector.h>
 #include <aruco/cvdrawingutils.h>
+#include <aruco/highlyreliablemarkers.h>
 /************************************
  *
- *
+ * Chromatic Masks are not supported yet
  *
  *
  ************************************/
@@ -56,7 +55,7 @@ namespace aruco_ros{
 	using namespace cv;
 	using namespace aruco; 
 
-	class Aruco_BoardDetector : public nodelet::Nodelet
+	class Aruco_HRM_BoardDetector : public nodelet::Nodelet
 	{
 		// ROS communication
 		public: 
@@ -65,9 +64,8 @@ namespace aruco_ros{
 			bool useRectifiedParams;
 			string board_frame;
 			string camera_frame;
-			//string reference_frame;
 			string boardconfigfile;
-			//tf::Transform cameraToReference;
+			string dictionaryconfigfile;
 			//Image Transportation
 			boost::shared_ptr<image_transport::ImageTransport> it_;
 			image_transport::CameraSubscriber sub_camera_;
@@ -80,6 +78,7 @@ namespace aruco_ros{
 			BoardConfiguration TheBoardConfig;
 			BoardDetector TheBoardDetector;
 			Board TheBoardDetected;
+      Dictionary D;
 			CameraParameters TheCameraParameters;
 			double marker_size;
 			//double ThreshParam1,ThreshParam2;
@@ -91,7 +90,7 @@ namespace aruco_ros{
 
 	/* --- Definitions: --- */
 
-	void Aruco_BoardDetector::onInit()
+	void Aruco_HRM_BoardDetector::onInit()
 	{
 		ros::NodeHandle &nh         = getNodeHandle();
 		ros::NodeHandle &private_nh = getPrivateNodeHandle();
@@ -102,7 +101,7 @@ namespace aruco_ros{
 		//Image Transportation
 		it_.reset(new image_transport::ImageTransport(nh));
 		image_transport::TransportHints hints("raw", ros::TransportHints(), private_nh);
-		sub_camera_ = it_->subscribeCamera("image", 1, &Aruco_BoardDetector::imageCb, this, hints);//Subscribe to raw data
+		sub_camera_ = it_->subscribeCamera("image", 1, &Aruco_HRM_BoardDetector::imageCb, this, hints);//Subscribe to raw data
 		// Declare Publishers
 		image_pub  = it_->advertise("result",  1);//Contour image
 		pose_pub = nh.advertise<geometry_msgs::PoseStamped>("pose", 100);
@@ -113,63 +112,23 @@ namespace aruco_ros{
 		private_nh.param<std::string>("camera_frame", camera_frame, "camera");
 		private_nh.param<std::string>("board_frame", board_frame, "board");
 		private_nh.param<std::string>("board_config", boardconfigfile, "");
+		private_nh.param<std::string>("dictionary_config", dictionaryconfigfile, "");
 		private_nh.param<bool>("param_rectified", useRectifiedParams, false);
 
 		/* Assertions about parameters */
 		//ROS_ASSERT(camera_frame != "" && board_frame != "");
-		ROS_ASSERT(boardconfigfile != "");
+		ROS_ASSERT(boardconfigfile != "" && dictionaryconfigfile != "");
 		//if ( reference_frame.empty() )
 			//reference_frame = camera_frame;
+		ROS_INFO("Using Camera_frame[%s]\t Rectification: [%d]\t marker_size[%f]\t ",camera_frame.c_str(), useRectifiedParams, marker_size);
 		ROS_INFO("Aruco node will publish pose to TF with %s as parent and %s as child.",
 				camera_frame.c_str(), board_frame.c_str());
-		//cameraToReference.setIdentity();
+			//cameraToReference.setIdentity();
 		//TODO Add reconfigure server for this node if needed
 	}
 
-	//Non member function copied from simple_single old aruco
-	/*static bool getTransform(const std::string& refFrame,
-			const std::string& childFrame,
-			tf::Transform& transform)
-	{
-    static tf::TransformListener _tfListener;
-		static bool foundTransform = false;
-		if(!foundTransform)
-		{
-			std::string errMsg;
-			tf::StampedTransform temptransform;
-
-			if ( !_tfListener.waitForTransform(refFrame,
-						childFrame,
-						ros::Time(0),
-						ros::Duration(0.5),
-						ros::Duration(0.01),
-						&errMsg)
-				 )
-			{
-				ROS_ERROR_STREAM("Unable to get pose from TF: " << errMsg);
-				return false;
-			}
-			else
-			{
-				try
-				{
-					_tfListener.lookupTransform( refFrame, childFrame,
-							ros::Time(0),                  //get latest available
-							temptransform);
-				}
-				catch ( const tf::TransformException& e)
-				{
-					ROS_ERROR_STREAM("Error in lookupTransform of " << childFrame << " in " << refFrame);
-					return false;
-				}
-			}
-			transform = static_cast<tf::Transform>(temptransform);
-			return true;
-		}
-	}
-	*/
 	//Image Callback whenever image comes:
-	void Aruco_BoardDetector::imageCb(const sensor_msgs::ImageConstPtr& image_msg, const sensor_msgs::CameraInfoConstPtr& info_msg)
+	void Aruco_HRM_BoardDetector::imageCb(const sensor_msgs::ImageConstPtr& image_msg, const sensor_msgs::CameraInfoConstPtr& info_msg)
 	{
 		static tf::TransformBroadcaster br;
 		if(!cam_info_received)
@@ -179,10 +138,21 @@ namespace aruco_ros{
 			{
 				TheCameraParameters = aruco_ros::rosCameraInfo2ArucoCamParams(info_msg, useRectifiedParams);
 				TheBoardConfig.readFromFile(boardconfigfile);
+				// read dictionary
+				if (!D.fromFile(dictionaryconfigfile)) {
+					//cerr<<"Could not open dictionary file"<<endl;
+					throw std::invalid_argument("The dictionary file cannot be opened");
+				}     
+				HighlyReliableMarkers::loadDictionary(D);
+				//Setting Parameters for boarddetector
+				TheBoardDetector.setYPerperdicular(false); 
 				TheBoardDetector.setParams(TheBoardConfig,TheCameraParameters,marker_size);
+				TheBoardDetector.getMarkerDetector().setThresholdParams( 21,7); // for blue-green markers, the window size has to be larger
 				//TheBoardDetector.getMarkerDetector().getThresholdParams(ThreshParam1,ThreshParam2);
-				TheBoardDetector.getMarkerDetector().setCornerRefinementMethod(MarkerDetector::HARRIS);
-				TheBoardDetector.set_repj_err_thres(1.5);//Copying defaults from utility
+				TheBoardDetector.getMarkerDetector().setMakerDetectorFunction(aruco::HighlyReliableMarkers::detect);
+				TheBoardDetector.getMarkerDetector().setCornerRefinementMethod(aruco::MarkerDetector::LINES);
+				TheBoardDetector.getMarkerDetector().setWarpSize((D[0].n()+2)*8);
+				TheBoardDetector.getMarkerDetector().setMinMaxSize(0.005, 0.5);	
 			} 
 			catch (std::exception &ex)
 			{
@@ -199,16 +169,6 @@ namespace aruco_ros{
 			//Use Probability to find covariances etc for the pose estimate later on
 
 			tf::Transform transform = aruco_ros::arucoBoard2Tf(TheBoardDetector.getDetectedBoard());
-
-			/*if ( reference_frame != camera_frame )
-			{
-				getTransform(reference_frame,//Use static transform for greater efficiency
-						camera_frame,
-						cameraToReference);
-			}
-			transform = cameraToReference * transform;
-			*/
-
 			tf::StampedTransform stampedTransform(transform, ros::Time::now(),//have to put the camera stamp here
 					camera_frame, board_frame);
 			br.sendTransform(stampedTransform);
@@ -217,7 +177,6 @@ namespace aruco_ros{
 			poseMsg.header.frame_id = camera_frame;
 			poseMsg.header.stamp = ros::Time::now();
 			pose_pub.publish(poseMsg);
-
 
 			if(image_pub.getNumSubscribers() > 0)
 			{
@@ -238,4 +197,4 @@ namespace aruco_ros{
 }//namespace aruco_ros
 	// Register nodelet
 #include <pluginlib/class_list_macros.h>
-	PLUGINLIB_DECLARE_CLASS(aruco_ros, board_detector, aruco_ros::Aruco_BoardDetector, nodelet::Nodelet)
+	PLUGINLIB_DECLARE_CLASS(aruco_ros, board_hrmdetector, aruco_ros::Aruco_HRM_BoardDetector, nodelet::Nodelet)

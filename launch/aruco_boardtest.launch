@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+  <node pkg="nodelet" type="nodelet" name="camera_nodelet_manager" args="manager" output="screen"/>
+  <node pkg="nodelet" type="nodelet" name="camera_driver" args="load camera1394/driver camera_nodelet_manager">
+    <param name="guid" type="string" value="00b09d0100bc512e"/>
+    <param name="video_mode" type="string" value="640x480_mono8"/>
+		<param name="frame_rate" type="double" value="40.0"/>
+	</node>
+	<node pkg="nodelet" type="nodelet" name="Pose_Est" args="load aruco_ros/board_detector camera_nodelet_manager">
+		<param name="marker_size" type="double" value="0.038"/>
+		<param name="board_config" type="string" value="$(find aruco_ros)/configFiles/regular/boardConfig.yaml"/>
+		<remap from="image" to="camera/image_raw" />
+		<remap from="result" to="camera/result" />
+	</node>
+  <node pkg="nodelet" type="nodelet" name="image_view" args="load image_view/image camera_nodelet_manager">
+		<remap from="image" to="camera/result" />
+	</node>
+</launch>
